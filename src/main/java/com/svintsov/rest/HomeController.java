@@ -1,6 +1,7 @@
 package com.svintsov.rest;
 
 import static com.svintsov.rest.ExceptionUtils.createException;
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,14 +16,12 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -109,5 +108,21 @@ public class HomeController {
         availableMessages.put(message);
     }
 
-
+    @GET
+    @Path("/completionStage")
+    @Produces(MediaType.APPLICATION_JSON)
+    public CompletionStage<BaseResponseDTO> completionStage() {
+        log.info("Connection accepted");
+        return supplyAsync(() -> {
+            log.info("Starting a long running task");
+            try {
+                Thread.sleep(2000);
+                log.info("Long running task is done, returning result");
+                return new BaseResponseDTO("DONE");
+            } catch (InterruptedException e) {
+                log.warn("Interrupted during the task");
+                throw new RuntimeException(e);
+            }
+        }, clientRequestExecutor);
+    }
 }
