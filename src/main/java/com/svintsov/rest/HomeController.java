@@ -4,9 +4,12 @@ import static com.svintsov.rest.ExceptionUtils.createException;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import jakarta.servlet.AsyncContext;
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
@@ -17,10 +20,13 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -124,5 +130,23 @@ public class HomeController {
                 throw new RuntimeException(e);
             }
         }, clientRequestExecutor);
+    }
+
+    @POST
+    @Path("/listenerBasedRead")
+    @Produces(MediaType.TEXT_PLAIN)
+    public CompletionStage<String> listenerBasedRead(@Context HttpServletRequest request) throws IOException {
+        AsyncContext asyncContext = request.startAsync();
+
+        ServletInputStream inputStream = request.getInputStream();
+        AccumulatingReadListener accumulatingReadListener = new AccumulatingReadListener(inputStream);
+        inputStream.setReadListener(accumulatingReadListener);
+
+        CompletableFuture<String> responseFuture = accumulatingReadListener.getRequestPromise()
+                .publishOn(Schedulers.parallel())
+                .doOnNext(s -> log.info("Request received in controller: {}", s))
+                .toFuture();
+        log.info("Future is constructed, leaving controller method");
+        return responseFuture;
     }
 }
