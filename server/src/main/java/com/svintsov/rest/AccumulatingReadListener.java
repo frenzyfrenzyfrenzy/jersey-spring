@@ -39,7 +39,7 @@ public class AccumulatingReadListener implements ReadListener {
 
     @Override
     public void onError(Throwable t) {
-
+        requestSinks.forEach(stringMonoSink -> stringMonoSink.error(t));
     }
 
     public Mono<String> getRequestPromise() {

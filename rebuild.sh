@@ -1,5 +1,5 @@
 #!/bin/zsh
 
-docker ps -aq | xargs docker stop | xargs docker rm
+docker compose down
 mvn clean install
-docker run -e JPDA_SUSPEND=n -d -p 8080:8080 -p 8000:8000 svintsov/nio-test
+docker compose up -d
