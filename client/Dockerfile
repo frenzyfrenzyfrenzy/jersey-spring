@@ -1,7 +1,8 @@
-FROM arm64v8/tomcat:11.0
+FROM arm64v8/tomcat:10.1.0
 
-COPY target/nio-test-client-1.0-SNAPSHOT.war /usr/local/tomcat/webapps/nio-client.war
+COPY target/nio-test-client-1.0-SNAPSHOT.war /usr/local/tomcat/webapps/nio-test-client.war
 
+ENV JPDA_SUSPEND=n
 ENV JPDA_ADDRESS=*:8000
 ENV JPDA_TRANSPORT=dt_socket
 
