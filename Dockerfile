@@ -7,5 +7,6 @@ ENV JPDA_TRANSPORT=dt_socket
 
 EXPOSE 8080
 EXPOSE 8000
+EXPOSE 9010
 
 CMD bin/catalina.sh jpda run
