@@ -5,6 +5,7 @@ import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.ws.rs.GET;
@@ -18,11 +19,13 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
+import org.glassfish.jersey.server.ManagedAsync;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.rmi.server.ExportException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -44,7 +47,16 @@ public class HomeController {
     @Produces(MediaType.APPLICATION_JSON)
     public void suspended(HttpServletRequest request, @Suspended AsyncResponse response) {
         log.info("Suspending the request in the controller");
-        response.resume("suspended");
+        clientRequestExecutor.submit(() -> {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            log.info("Resuming from the executor");
+            response.resume("suspended");
+        });
+        log.info("Returning from the controller method");
     }
 
     @GET
@@ -52,15 +64,28 @@ public class HomeController {
     @Produces(MediaType.APPLICATION_JSON)
     public void startAsync(@Context HttpServletRequest request, @Context HttpServletResponse response) throws IOException {
         log.info("Suspending the sync request");
-        PrintWriter responseWriter = response.getWriter();
+        ServletOutputStream outputStream = response.getOutputStream();
         AsyncContext asyncContext = request.startAsync();
-        asyncContext.start(() -> {
-            log.info("Doing something asynchronous");
-            responseWriter.println("DONE");
-            responseWriter.flush();
-            asyncContext.complete();
+        clientRequestExecutor.submit(() -> {
+            log.info("Resuming from the executor");
+            try {
+                outputStream.println("DONE");
+                outputStream.flush();
+                asyncContext.complete();
+            } catch (Exception exception) {
+                log.error("An error happened while flushing", exception);
+            }
         });
         log.info("Leaving controller method, will continue asynchronously");
+    }
+
+    @GET
+    @Path("/managedAsync")
+    @ManagedAsync
+    @Produces(MediaType.APPLICATION_JSON)
+    public BaseResponseDTO managedAsync() {
+        log.info("Starting execution in a managed thread");
+        return new BaseResponseDTO("MANAGED");
     }
 
     @GET
@@ -69,12 +94,8 @@ public class HomeController {
     public void suspendedErrors(@QueryParam("mode") String mode, @Suspended AsyncResponse response) {
         log.info("Gonna throw error from suspended request");
         switch (mode) {
-            case "SYNC" -> throw createException(Response.Status.UNAUTHORIZED, "SYNC ERROR");
-            case "ASYNC" -> response.resume(createException(Response.Status.SERVICE_UNAVAILABLE, "ASYNC ERROR"));
-            case "EXEC" -> clientRequestExecutor.submit(() -> {
-                log.info("responding from the executor");
-                return response.resume(new BaseResponseDTO("EXECUTED"));
-            });
+            case "THROW" -> throw createException(Response.Status.UNAUTHORIZED, "ERROR FROM THROW");
+            case "RESUME" -> response.resume(createException(Response.Status.SERVICE_UNAVAILABLE, "ERROR FROM RESUME"));
         }
     }
 
