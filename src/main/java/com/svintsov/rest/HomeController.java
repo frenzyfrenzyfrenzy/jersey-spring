@@ -3,6 +3,7 @@ package com.svintsov.rest;
 import static com.svintsov.rest.ExceptionUtils.createException;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 
+import com.svintsov.service.RestClient;
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletOutputStream;
@@ -24,8 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.rmi.server.ExportException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -41,6 +40,9 @@ public class HomeController {
 
     @Autowired
     private BlockingQueue<String> availableMessages;
+
+    @Autowired
+    private RestClient restClient;
 
     @GET
     @Path("/suspended")
@@ -167,5 +169,20 @@ public class HomeController {
                 .toFuture();
         log.info("Future is constructed, leaving controller method");
         return responseFuture;
+    }
+
+    @GET
+    @Path("/time")
+    @Produces(MediaType.APPLICATION_JSON)
+    public CompletionStage<BaseResponseDTO> getCurrentTime() {
+        return restClient.getCurrentTime()
+                .thenApply(response -> {
+                    log.info("Response is ready in netty thread, offloading next async operation to our scheduler");
+                    return response;
+                })
+                .thenApplyAsync(response -> {
+                    log.info("In our scheduler thread. Finalizing response");
+                    return new BaseResponseDTO(response.readEntity(String.class));
+                }, clientRequestExecutor);
     }
 }

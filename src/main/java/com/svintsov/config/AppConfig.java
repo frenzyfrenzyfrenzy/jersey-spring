@@ -1,5 +1,6 @@
 package com.svintsov.config;
 
+import com.svintsov.service.RestClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,4 +22,8 @@ public class AppConfig {
         return new ArrayBlockingQueue<>(10);
     }
 
+    @Bean
+    public RestClient restClient() {
+        return new RestClient();
+    }
 }
